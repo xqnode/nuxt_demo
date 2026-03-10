@@ -1,0 +1,64 @@
+# --- Nuxt 4 & Nitro 特定输出 ---
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+# 如果你使用了 Nuxt DevTools 可能会产生一些本地状态
+.nuxtrc
+
+# --- 依赖库 ---
+node_modules
+# 如果你之后使用了 pnpm
+pnpm-lock.yaml
+# 如果之后使用了 bun
+bun.lockb
+
+# --- 环境变量 & 密钥 (最关键) ---
+.env
+.env.*
+!.env.example
+# 你的 JWT_SECRET 或 数据库凭据绝对不能提交
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- 数据库 (针对你的 server/db 目录) ---
+# 如果你使用了 SQLite 做本地测试
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+# 如果使用了 Prisma 或 Drizzle 产生的临时文件
+/server/db/migrations/
+
+# --- 编辑器 & 系统 ---
+.DS_Store
+.fleet
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- 日志 & 调试 ---
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- 测试 ---
+/coverage
+/.nyc_output
+
+# --- 文件夹占位 (可选) ---
+# 如果你想保留空的 assets 或 public 目录但不想提交内容
+# !app/assets/.gitkeep
