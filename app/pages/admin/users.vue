@@ -1,308 +1,363 @@
-<!-- app/pages/admin/users.vue -->
+<!-- pages/admin/users.vue -->
 <template>
-  <div>
-    <!-- 顶部操作栏 -->
-    <div class="flex items-center justify-between mb-4">
-      <div class="relative">
-        <Icon name="lucide:search" size="15" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="searchKeyword" placeholder="搜索账号 / 名称" class="pl-9 w-60" @input="handleSearch" />
-      </div>
-      <Button @click="openModal()">
-        <Icon name="lucide:plus" size="16" />
-        新增用户
-      </Button>
+  <div class="space-y-4">
+
+    <!-- 顶部工具栏 -->
+    <div class="flex items-center justify-between">
+      <UInput v-model="searchKeyword" placeholder="搜索账号 / 名称" icon="i-lucide-search" class="w-64"
+        @update:model-value="handleSearch" />
+      <UButton icon="i-lucide-plus" @click="openModal()">新增用户</UButton>
     </div>
 
-    <!-- DataTable -->
-    <DataTable
-      :columns="columns"
-      :data="list"
-      :loading="loading"
-      :total="total"
-      :page="page"
-      :page-size="pageSize"
-      @update:page="val => { page = val; fetchList() }"
-      @update:page-size="val => { pageSize = val; page = 1; fetchList() }"
-    />
+    <!-- 表格 -->
+    <UCard :ui="{ body: 'p-0 overflow-hidden' }">
+      <UTable :data="list" :columns="columns" :loading="loading">
+        <template #role-cell="{ row }">
+          <UBadge :color="row.original.role === 'admin' ? 'error' : 'info'" variant="subtle" class="rounded-full">
+            {{ row.original.role === 'admin' ? '管理员' : '普通用户' }}
+          </UBadge>
+        </template>
 
-    <!-- 新增/编辑弹窗 -->
-    <Dialog v-model:open="modalVisible">
-      <DialogContent class="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{{ modalTitle }}</DialogTitle>
-        </DialogHeader>
-        <form class="py-4 space-y-3" @submit="onSubmit">
-          <AppFormItem name="username" label="账号 *" placeholder="请输入账号" :disabled="!!editingUser" />
-          <AppFormItem v-if="!editingUser" name="password" label="密码 *" type="password" placeholder="请输入密码" />
-          <AppFormItem name="name" label="名称" placeholder="请输入名称" />
-          <AppFormItem name="status" label="状态">
-            <template #default="{ field }">
-              <RadioGroup
-                :model-value="String(field.modelValue ?? 1)"
-                class="flex gap-4"
-                @update:model-value="val => field['onUpdate:modelValue']?.(Number(val))"
-              >
-                <div v-for="opt in statusOptions" :key="opt.value" class="flex items-center gap-1.5">
-                  <RadioGroupItem :id="`status-${opt.value}`" :value="String(opt.value)" />
-                  <Label :for="`status-${opt.value}`" class="text-sm font-normal cursor-pointer">{{ opt.label }}</Label>
-                </div>
-              </RadioGroup>
-            </template>
-          </AppFormItem>
-          <DialogFooter class="mt-5">
-            <Button type="button" variant="outline" size="sm" @click="closeModal">取消</Button>
-            <Button type="submit" size="sm" :disabled="submitting">
-              <span v-if="submitting" class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
-              确认
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <template #avatar-cell="{ row }">
+          <UAvatar :src="row.original.avatar ?? undefined" :alt="row.original.name ?? row.original.username" size="sm"
+            class="cursor-pointer" @click="avatarUrl = row.original.avatar ?? ''; avatarModalVisible = true" />
+        </template>
 
-    <!-- 重置密码弹窗 -->
-    <Dialog v-model:open="resetPasswordVisible">
-      <DialogContent class="max-w-sm">
-        <DialogHeader>
-          <div class="flex flex-col items-center text-center gap-3 pt-2">
-            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-              <Icon name="lucide:key-round" size="22" class="text-primary" />
-            </div>
-            <div>
-              <DialogTitle>重置密码</DialogTitle>
-              <p class="text-sm text-muted-foreground mt-1">
-                请输入用户
-                <span class="text-foreground font-medium">{{ resetPasswordUser?.username }}</span>
-                的新密码
-              </p>
-            </div>
+        <template #status-cell="{ row }">
+          <UBadge :color="isEnabled(row.original) ? 'success' : 'neutral'" variant="subtle"
+            class="rounded-full select-none cursor-pointer" @click="toggleStatus(row.original)">
+            {{ isEnabled(row.original) ? '启用' : '禁用' }}
+          </UBadge>
+        </template>
+
+        <template #actions-cell="{ row }">
+          <div class="flex items-center gap-0.5 whitespace-nowrap">
+            <UTooltip text="编辑">
+              <UButton class="px-1" icon="i-lucide-pencil" color="neutral" variant="ghost" size="xs"
+                @click="openModal(row.original)" />
+            </UTooltip>
+            <UTooltip :text="isEnabled(row.original) ? '禁用' : '启用'">
+              <UButton class="px-1" :icon="isEnabled(row.original) ? 'i-lucide-ban' : 'i-lucide-circle-check'"
+                :color="isEnabled(row.original) ? 'warning' : 'success'" variant="ghost" size="xs"
+                @click="toggleStatus(row.original)" />
+            </UTooltip>
+            <UTooltip text="重置密码">
+              <UButton class="px-1" icon="i-lucide-key-round" color="neutral" variant="ghost" size="xs"
+                @click="confirmResetPassword(row.original)" />
+            </UTooltip>
+            <UTooltip text="删除">
+              <UButton class="px-1" icon="i-lucide-trash-2" color="error" variant="ghost" size="xs"
+                @click="confirmDelete(row.original)" />
+            </UTooltip>
           </div>
-        </DialogHeader>
-        <div class="px-1 pb-2">
-          <Input v-model="newPassword" type="password" placeholder="请输入新密码" class="h-8 text-sm" />
-          <p v-if="resetPasswordError" class="text-[10px] text-destructive mt-1">{{ resetPasswordError }}</p>
-        </div>
-        <DialogFooter class="gap-2 sm:gap-2">
-          <Button variant="outline" class="flex-1" @click="resetPasswordVisible = false">取消</Button>
-          <Button class="flex-1" :disabled="resettingPassword" @click="handleResetPassword">
-            <span v-if="resettingPassword" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
-            确认重置
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </template>
+
+        <template #empty>
+          <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+            <UIcon name="i-lucide-users" class="size-10 mb-2 opacity-20" />
+            <p class="text-sm">暂无用户信息</p>
+          </div>
+        </template>
+
+      </UTable>
+
+      <!-- 分页 -->
+      <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <p class="text-xs text-slate-500">共 {{ total }} 条记录</p>
+        <UPagination v-model:page="page" :total="total" :items-per-page="pageSize" size="sm" @update:page="fetchList" />
+      </div>
+    </UCard>
+
+    <!-- 新增 / 编辑弹窗 -->
+    <UModal v-model:open="modalVisible" :title="editingUser ? '编辑用户' : '新增用户'">
+      <template #body>
+        <UForm :schema="formSchema" :state="formState" class="space-y-4" @submit="onSubmit">
+          <UFormField label="账号" name="username" required>
+            <UInput v-model="formState.username" placeholder="登录账号" :disabled="!!editingUser" class="w-full" />
+          </UFormField>
+
+          <UFormField v-if="!editingUser" label="密码" name="password" required>
+            <UInput v-model="formState.password" type="password" placeholder="至少 6 位字符" class="w-full" />
+          </UFormField>
+
+          <UFormField label="显示名称" name="name">
+            <UInput v-model="formState.name" placeholder="用户昵称" class="w-full" />
+          </UFormField>
+
+          <UFormField label="角色" name="role">
+            <div class="flex gap-2">
+              <UButton v-for="item in roleOptions" :key="item.value"
+                :variant="formState.role === item.value ? 'solid' : 'outline'" color="neutral" size="sm"
+                @click="formState.role = item.value">
+                {{ item.label }}
+              </UButton>
+            </div>
+          </UFormField>
+
+          <UFormField label="账号状态" name="status">
+            <div class="flex gap-2">
+              <UButton v-for="item in statusOptions" :key="item.value"
+                :variant="formState.statusStr === item.value ? 'solid' : 'outline'" color="neutral" size="sm"
+                @click="formState.statusStr = item.value">
+                {{ item.label }}
+              </UButton>
+            </div>
+          </UFormField>
+
+          <div class="flex justify-end gap-2 pt-4">
+            <UButton color="neutral" variant="outline" @click="closeModal">取消</UButton>
+            <UButton type="submit" :loading="submitting">确认提交</UButton>
+          </div>
+        </UForm>
+      </template>
+    </UModal>
 
     <!-- 删除确认弹窗 -->
-    <Dialog v-model:open="deleteVisible">
-      <DialogContent class="max-w-sm">
-        <DialogHeader>
-          <div class="flex flex-col items-center text-center gap-3 pt-2">
-            <div class="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center">
-              <Icon name="lucide:trash-2" size="22" class="text-destructive" />
-            </div>
-            <div>
-              <DialogTitle>确认删除</DialogTitle>
-              <p class="text-sm text-muted-foreground mt-1">
-                确定要删除用户
-                <span class="text-foreground font-medium">{{ deletingUser?.username }}</span>
-                吗？此操作不可恢复。
-              </p>
-            </div>
-          </div>
-        </DialogHeader>
-        <DialogFooter class="gap-2 sm:gap-2">
-          <Button variant="outline" class="flex-1" @click="deleteVisible = false">取消</Button>
-          <Button variant="destructive" class="flex-1" :disabled="deleting" @click="handleDelete">
-            <span v-if="deleting" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1" />
-            确认删除
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <UModal v-model:open="deleteModalVisible" title="确认删除">
+      <template #body>
+        <p class="text-sm text-slate-600">
+          确认删除用户
+          <span class="font-semibold text-slate-900">{{ deletingUser?.username }}</span>
+          吗？此操作不可撤销。
+        </p>
+        <div class="flex justify-end gap-2 pt-6">
+          <UButton color="neutral" variant="outline" @click="deleteModalVisible = false">取消</UButton>
+          <UButton color="error" :loading="deleting" @click="doDelete">确认删除</UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- 重置密码确认弹窗 -->
+    <UModal v-model:open="resetModalVisible" title="重置密码">
+      <template #body>
+        <p class="text-sm text-slate-600">
+          确认重置用户
+          <span class="font-semibold text-slate-900">{{ resetingUser?.username }}</span>
+          的密码吗？
+        </p>
+        <div class="flex justify-end gap-2 pt-6">
+          <UButton color="neutral" variant="outline" @click="resetModalVisible = false">取消</UButton>
+          <UButton :loading="reseting" @click="doResetPassword">确认重置</UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- 头像放大弹窗 -->
+    <UModal v-model:open="avatarModalVisible" title="头像预览">
+      <template #body>
+        <div class="flex justify-center p-4">
+          <img :src="avatarUrl" class="w-48 h-48 rounded-full object-cover" />
+        </div>
+      </template>
+    </UModal>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { useForm } from 'vee-validate'
-import { toTypedSchema } from '@vee-validate/zod'
+import { h } from 'vue'
 import * as z from 'zod'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { createColumns, type User } from './users/columns'
+import { useDebounceFn } from '@vueuse/core'
+import type { FormSubmitEvent, TableColumn } from '@nuxt/ui'
+// ---- 类型定义 ----
+import type { User } from '~/types/user'
 
 definePageMeta({ layout: 'admin' })
 
-// ---- 列表 & 分页 ----
+// ---- 工具函数 ----
+const isEnabled = (user: User) => user.status === 1
+
+const formatDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+
+// ---- 基础状态 ----
+const toast = useToast()
 const list = ref<User[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const searchKeyword = ref('')
-let searchTimer: ReturnType<typeof setTimeout>
 
-async function fetchList() {
-  loading.value = true
-  try {
-    const res = await $fetch<{ list: User[]; total: number }>('/api/users', {
-      query: {
-        keyword: searchKeyword.value,
-        page: page.value,
-        pageSize: pageSize.value,
-      },
-    })
-    list.value = res.list
-    total.value = res.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function handleSearch() {
-  clearTimeout(searchTimer)
-  page.value = 1
-  searchTimer = setTimeout(fetchList, 300)
-}
-
-async function toggleStatus(user: User) {
-  const newStatus = user.status === 1 ? 0 : 1
-  await $fetch(`/api/users/${user.id}/status`, {
-    method: 'PATCH',
-    body: { status: newStatus },
-  })
-  user.status = newStatus
-}
-
-// ---- columns ----
-const columns = createColumns({
-  onEdit: openModal,
-  onResetPassword: confirmResetPassword,
-  onDelete: confirmDelete,
-  onToggleStatus: toggleStatus,
-})
-
-// ---- 新增/编辑弹窗 ----
+// ---- 弹窗状态 ----
 const modalVisible = ref(false)
 const submitting = ref(false)
 const editingUser = ref<User | null>(null)
-const statusOptions = [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }]
-const modalTitle = computed(() => editingUser.value ? '编辑用户' : '新增用户')
 
-const formSchema = computed(() =>
-  toTypedSchema(
-    z.object({
-      username: z.string().min(1, '请输入账号'),
-      password: editingUser.value
-        ? z.string().optional()
-        : z.string().min(6, '密码至少6位'),
-      name: z.string().optional(),
-      status: z.number(),
-    })
+const deleteModalVisible = ref(false)
+const deleting = ref(false)
+const deletingUser = ref<User | null>(null)
+
+const resetModalVisible = ref(false)
+const reseting = ref(false)
+const resetingUser = ref<User | null>(null)
+
+const avatarModalVisible = ref(false)
+const avatarUrl = ref('')
+
+// ---- 列定义 ----
+const columns: TableColumn<User>[] = [
+  { accessorKey: 'id', header: 'ID' },
+  { accessorKey: 'username', header: '账号' },
+  { accessorKey: 'name', header: '名称' },
+  { accessorKey: 'avatar', header: '头像' },
+  { accessorKey: 'role', header: '角色' },
+  { accessorKey: 'status', header: '状态' },
+  {
+    accessorKey: 'createdAt',
+    header: '创建时间',
+    cell: ({ row }) => h('span', { class: 'text-slate-500 text-sm' }, formatDate(row.original.createdAt)),
+  },
+  { id: 'actions', header: '操作', meta: { class: { td: 'w-1', th: 'w-1' } } },
+]
+
+// ---- 搜索防抖 ----
+const handleSearch = useDebounceFn(() => {
+  page.value = 1
+  fetchList()
+}, 300)
+
+const UserApi = useUserApi()
+const { request } = useApi()
+
+// ---- 获取列表 ----
+async function fetchList() {
+  const res = await request(
+    () => UserApi.list({ keyword: searchKeyword.value, page: page.value, pageSize: pageSize.value }),
+    { errorMsg: '获取列表失败', loadingRef: loading }
   )
-)
+  if (res) {
+    list.value = res.list
+    total.value = res.total
+  }
+}
 
-const { handleSubmit, resetForm, setFieldError } = useForm({
-  validationSchema: formSchema,
-  initialValues: { username: '', password: '', name: '', status: 1 },
+// ---- 表单 ----
+// URadioGroup 需要字符串值，用 statusStr 中转
+const statusOptions = [
+  { label: '启用', value: '1' },
+  { label: '禁用', value: '0' },
+]
+
+const roleOptions = [
+  { label: '管理员', value: 'admin' },
+  { label: '普通用户', value: 'user' },
+]
+
+const formState = reactive({
+  username: '',
+  password: '',
+  name: '',
+  role: 'user',
+  statusStr: '1', // RadioGroup 绑定字符串
 })
 
+const formSchema = z.object({
+  username: z.string().min(1, '请输入账号'),
+  password: z.string().refine(
+    val => editingUser.value ? true : val.length >= 6,
+    { message: '新用户密码至少 6 位' }
+  ),
+  name: z.string().optional(),
+  statusStr: z.string(),
+  role: z.string(),
+})
+
+type FormSchema = z.output<typeof formSchema>
+
 function openModal(user?: User) {
-  editingUser.value = user || null
-  resetForm({
-    values: {
-      username: user?.username ?? '',
-      password: '',
-      name: user?.name ?? '',
-      status: user?.status ?? 1,
-    },
+  editingUser.value = user ?? null
+  Object.assign(formState, user ? {
+    username: user.username,
+    password: '',
+    name: user.name ?? '',
+    statusStr: String(user.status ?? 1),
+    role: user.role ?? 'user',
+  } : {
+    username: '',
+    password: '',
+    name: '',
+    statusStr: '1',
+    role: 'user',
   })
   modalVisible.value = true
 }
 
 function closeModal() {
   modalVisible.value = false
+  editingUser.value = null
 }
 
-const onSubmit = handleSubmit(async (values) => {
-  submitting.value = true
-  try {
-    if (editingUser.value) {
-      await $fetch(`/api/users/${editingUser.value.id}`, {
-        method: 'PUT',
-        body: { name: values.name, status: values.status },
-      })
-    } else {
-      await $fetch('/api/users', {
-        method: 'POST',
-        body: { username: values.username, password: values.password, name: values.name, status: values.status },
-      })
-    }
+// ---- 提交表单 ----
+async function onSubmit(event: FormSubmitEvent<FormSchema>) {
+  const status = Number(event.data.statusStr)
+  const res = await request(
+    () => editingUser.value
+      ? UserApi.update(editingUser.value.id, { name: event.data.name, status, role: event.data.role })
+      : UserApi.create({ ...event.data, status }),
+    { errorMsg: editingUser.value ? '更新失败' : '创建失败', loadingRef: submitting }
+  )
+  if (res !== null) {
+    toast.add({ title: editingUser.value ? '更新成功' : '创建成功', color: 'success' })
     closeModal()
     fetchList()
-  } catch (e: any) {
-    setFieldError('username', e?.data?.message || '操作失败')
-  } finally {
-    submitting.value = false
-  }
-})
-
-// ---- 重置密码弹窗 ----
-const resetPasswordVisible = ref(false)
-const resetPasswordUser = ref<User | null>(null)
-const newPassword = ref('')
-const resetPasswordError = ref('')
-const resettingPassword = ref(false)
-
-function confirmResetPassword(user: User) {
-  resetPasswordUser.value = user
-  newPassword.value = ''
-  resetPasswordError.value = ''
-  resetPasswordVisible.value = true
-}
-
-async function handleResetPassword() {
-  if (!newPassword.value.trim()) {
-    resetPasswordError.value = '请输入新密码'
-    return
-  }
-  resettingPassword.value = true
-  try {
-    await $fetch(`/api/users/${resetPasswordUser.value!.id}/password`, {
-      method: 'PATCH',
-      body: { password: newPassword.value },
-    })
-    resetPasswordVisible.value = false
-  } catch (e: any) {
-    resetPasswordError.value = e?.data?.message || '操作失败'
-  } finally {
-    resettingPassword.value = false
   }
 }
 
-// ---- 删除弹窗 ----
-const deleteVisible = ref(false)
-const deletingUser = ref<User | null>(null)
-const deleting = ref(false)
+// ---- 状态切换 ----
+async function toggleStatus(user: User) {
+  const newStatus = isEnabled(user) ? 0 : 1
+  const res = await request(
+    () => UserApi.toggleStatus(user.id, newStatus),
+    { errorMsg: '操作失败' }
+  )
+  if (res) {
+    const target = list.value.find(u => u.id === user.id)
+    if (target) target.status = newStatus
+    toast.add({ title: `已${newStatus === 1 ? '启用' : '禁用'}`, color: 'success' })
+  }
+}
 
+// ---- 删除 ----
 function confirmDelete(user: User) {
   deletingUser.value = user
-  deleteVisible.value = true
+  deleteModalVisible.value = true
 }
 
-async function handleDelete() {
+async function doDelete() {
   if (!deletingUser.value) return
-  deleting.value = true
-  try {
-    await $fetch(`/api/users/${deletingUser.value.id}`, { method: 'DELETE' })
-    deleteVisible.value = false
+  const res = await request(
+    () => UserApi.remove(deletingUser.value!.id),
+    { errorMsg: '删除失败', loadingRef: deleting }
+  )
+  if (res !== null) {
+    toast.add({ title: '删除成功', color: 'success' })
+    deleteModalVisible.value = false
     fetchList()
-  } finally {
-    deleting.value = false
   }
 }
 
+// ---- 重置密码 ----
+function confirmResetPassword(user: User) {
+  resetingUser.value = user
+  resetModalVisible.value = true
+}
+
+async function doResetPassword() {
+  if (!resetingUser.value) return
+  const res = await request(
+    () => UserApi.resetPassword(resetingUser.value!.id),
+    { errorMsg: '重置失败', loadingRef: reseting }
+  )
+  if (res !== null) {
+    toast.add({ title: '密码已重置', color: 'success' })
+    resetModalVisible.value = false
+  }
+}
+
+// ---- 初始化 ----
 onMounted(fetchList)
 </script>

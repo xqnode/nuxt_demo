@@ -7,6 +7,7 @@ export const users = mysqlTable('users', {
   name: varchar('name', { length: 255 }),
   avatar: varchar('avatar', { length: 255 }),
   status: tinyint('status'),
+  role: varchar('role', { length: 50 }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at'),
 })

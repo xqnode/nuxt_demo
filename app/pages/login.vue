@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ auth: false })
+definePageMeta({ layout: false })
 
 const form = reactive({ username: '', password: '' })
 const errors = reactive({ username: '', password: '' })
@@ -88,6 +88,8 @@ function validate() {
   return !errors.username && !errors.password
 }
 
+const { loggedIn, fetch: fetchSession } = useUserSession()
+
 async function handleLogin() {
   if (!validate()) return
   loading.value = true
@@ -97,7 +99,8 @@ async function handleLogin() {
       method: 'POST',
       body: { username: form.username, password: form.password },
     })
-    await navigateTo('/', { replace: true })
+    await fetchSession()  // 刷新 session
+    await navigateTo('/admin', { replace: true })
   } catch (e: any) {
     serverError.value = e?.data?.message || '登录失败，请重试'
   } finally {

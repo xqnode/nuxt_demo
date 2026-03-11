@@ -5,12 +5,13 @@ import { users } from '../../db/schema'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
-  const { password, name, status } = await readBody(event)
+  const { password, name, role, status } = await readBody(event)
 
   const db = await getDb()
 
   const updateData: Record<string, any> = {
     name: name || null,
+    role,
     status,
     updatedAt: new Date(),
   }

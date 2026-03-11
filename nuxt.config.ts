@@ -1,4 +1,4 @@
-import tailwindcss from '@tailwindcss/vite'
+// nuxt.config.ts
 import { defineNuxtConfig } from 'nuxt/config'
 
 export default defineNuxtConfig({
@@ -7,13 +7,11 @@ export default defineNuxtConfig({
     { path: '~/components', ignore: ['**/ui/**'] }
   ],
   modules: [
+    '@nuxt/ui',
     'nuxt-auth-utils',
     '@nuxt/icon'
   ],
   css: ['~/assets/css/main.css'],
-  vite: {
-    plugins: [tailwindcss() as any],
-  },
   runtimeConfig: {
     dbHost: process.env.DB_HOST,
     dbPort: process.env.DB_PORT || '3306',

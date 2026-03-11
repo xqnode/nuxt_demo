@@ -17,5 +17,8 @@ export default defineEventHandler(async (event) => {
     orderBy: (users, { desc }) => [desc(users.createdAt)],
   })
 
-  return list
+  return {
+    list,
+    total: list.length
+  }
 })
